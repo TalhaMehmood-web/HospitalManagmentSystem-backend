@@ -45,17 +45,44 @@ export const addDoctor = expressAsyncHandler(async (req, res) => {
         await doctor.save();
         res.status(201).json({ doctor, message: "Profile Created Successfully" })
     } catch (error) {
+        console.log(error);
         res.status(500).json({ message: error.message })
     }
 })
-
 export const allDoctors = expressAsyncHandler(async (req, res) => {
     try {
-        const doctors = await Doctor.find()
-        if (!doctors) {
-            return res.status(404).json({ message: "Data not found!!" })
+        const { limit = 10, search, age, sort } = req.query;
+
+        const filters = {
+            ...search && { fullname: { $regex: search, $options: 'i' } },
+            ...age && { age: { $gte: Number(age) } },
+        };
+
+        const doctors = await Doctor.find(filters)
+            .limit(Number(limit))
+            .sort(sort);
+
+        if (!doctors || doctors.length === 0) {
+            return res.status(404).json({ message: "Data not found!!" });
         }
-        res.status(200).json(doctors)
+
+        res.status(200).json(doctors);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+});
+export const deleteDoctor = expressAsyncHandler(async (req, res) => {
+    try {
+        const { doctorId } = req.params;
+        const doctor = await Doctor.findById(doctorId);
+        if (!doctor) {
+            return res.status(400).json({ message: "Doctor not found!!" })
+        }
+        const deletedDoctor = await Doctor.findByIdAndDelete(doctorId);
+        if (deletedDoctor) {
+            return res.status(200).json({ message: "Successfully Deleted" })
+        }
     } catch (error) {
         res.status(500).json({ message: error.message })
     }
