@@ -1,20 +1,22 @@
 import expressAsyncHandler from "express-async-handler";
 import Doctor from "../models/doctorModel.js"
 import uploadOnCloudinary from "../utils/cloudinary.js";
+import Appointment from "../models/appointmentModel.js"
 import validator from "validator";
+import mongoose from "mongoose";
 export const addDoctor = expressAsyncHandler(async (req, res) => {
     try {
         const { fullname, email, dateOfBirth, age, experience, specialization, phone, gender, address, detail } = req.body;
         if (
-            [fullname, email, dateOfBirth, specialization, phone, gender, address, age, experience].some(field => field?.trim() === "")
+            !fullname || !email || !dateOfBirth || !specialization || !phone || !gender || !address || !age || !experience
         ) {
             return res.status(400).json({ message: "All Fields are required !!" })
         }
-        // if ([age, experience].some(field => !isNaN(field) || field === null || field === undefined)) {
-        //     return res.status(400).json({ message: "Age or Experience should be in number" })
-        // }
+        if ([age, experience].some(field => !Number(field))) {
+            return res.status(400).json({ message: "Age and Experience should be in number" })
+        }
         if (!validator.isEmail(email)) {
-            return res.status(400).json({ message: "Not a valid email format!!" })
+            return res.status(400).json({ message: ` "${email}" \n \n is not a valid email format!!` })
         }
         const isDoctorExists = await Doctor.findOne({
             $or: [{ email }, { phone }]
@@ -23,9 +25,9 @@ export const addDoctor = expressAsyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Email or Phone number Already Exists!! " })
         }
 
-        const pictureLocalPath = req.file.path;
+        const pictureLocalPath = req.file?.path;
         if (!pictureLocalPath) {
-            return res.status(400).json({ message: "File path not found!!" })
+            return res.status(400).json({ message: "Picture is required" })
         }
         const picture = await uploadOnCloudinary(pictureLocalPath);
         const doctor = await Doctor.create({
@@ -87,3 +89,88 @@ export const deleteDoctor = expressAsyncHandler(async (req, res) => {
         res.status(500).json({ message: error.message })
     }
 })
+export const editDoctor = expressAsyncHandler(async (req, res) => {
+    try {
+        const { doctorId } = req.params;
+        const fieldsToUpdate = req.body;
+
+        if (!doctorId) {
+            return res.status(400).json({ message: "Nothing To Update" })
+        }
+        const doctor = await Doctor.findById(doctorId);
+        if (!doctor) {
+            return res.status(404).json({ message: "Data not found" })
+        }
+        if (req.file) {
+            const picture = await uploadOnCloudinary(req.file.path);
+            fieldsToUpdate.picture = picture?.url || "No Image"
+        }
+
+
+        const updatedDoctor = await Doctor.findByIdAndUpdate(doctorId, { $set: fieldsToUpdate }, { new: true })
+        if (!updatedDoctor) {
+            return res.status(400).json({ message: "Something went wrong while update" })
+        }
+        res.status(201).json({ updatedDoctor, message: "Successfully Updated" })
+    } catch (error) {
+        res.status(500).json({ message: error.message })
+    }
+})
+export const singleDoctor = expressAsyncHandler(async (req, res) => {
+    try {
+        const { doctorId } = req.params;
+        if (!doctorId) {
+            return res.status(400).json({ message: "Doctor ID is required" });
+        }
+        const doctor = await Doctor.findById(doctorId);
+        if (!doctor) {
+            return res.status(404).json({ message: "Doctor not found" })
+        }
+        res.status(200).json(doctor)
+    } catch (error) {
+        res.status(500).json({ message: error.message })
+    }
+})
+export const doctorActivity = expressAsyncHandler(async (req, res) => {
+    try {
+        const { doctorId } = req.params;
+        if (!doctorId) {
+            return res.status(400).json({ message: "Select doctor to view Details" });
+        }
+        const doctor = await Doctor.findById(doctorId)
+        if (!doctor) {
+            return res.status(404).json({ message: "Doctor not found!!" });
+        }
+        const activity = await Appointment.aggregate([
+            {
+                $match: { doctor: new mongoose.Types.ObjectId(doctorId) }
+            },
+            {
+                $lookup: {
+                    from: "patients",
+                    localField: "patient",
+                    foreignField: "_id",
+                    as: "patientDetails"
+                }
+            },
+            {
+                $unwind: "$patientDetails"
+            },
+            {
+                $project: {
+                    _id: 1,
+                    patientName: "$patientDetails.fullname",
+                    patientPicture: "$patientDetails.picture",
+                    injury: "$problemTitle",
+                    visitDate: "$appointmentDate",
+                    status: "$appointmentStatus",
+                }
+            }
+
+        ]);
+
+        res.status(200).json({ activity, doctor });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});

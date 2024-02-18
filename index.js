@@ -5,6 +5,7 @@ import connectDB from "./src/db/index.js";
 import adminRoutes from "./src/routes/adminRoutes.js";
 import patientRoutes from "./src/routes/patientRoutes.js"
 import doctorRoutes from "./src/routes/doctorRoutes.js"
+import appointmentRoutes from "./src/routes/appointmentRoutes.js"
 import cors from "cors"
 
 dotenv.config();
@@ -22,7 +23,7 @@ app.get("/", (_, res) => {
 app.use("/api/v1/admin", adminRoutes)
 app.use("/api/v1/patient", patientRoutes)
 app.use("/api/v1/doctor", doctorRoutes)
-
+app.use("/api/v1/appointment", appointmentRoutes)
 //------DB-Connection and App Listener--------//
 connectDB()
     .then(() => {

@@ -1,5 +1,9 @@
 import mongoose from "mongoose";
 const patientSchema = new mongoose.Schema({
+    patientId: {
+        type: String,
+        required: true
+    },
     fullname: {
         type: String,
         required: true,
@@ -14,7 +18,7 @@ const patientSchema = new mongoose.Schema({
         required: true
     },
     dateOfBirth: {
-        type: Date,
+        type: String,
         required: true
     },
     gender: {
